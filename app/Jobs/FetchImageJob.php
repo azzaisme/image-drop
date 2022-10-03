@@ -37,9 +37,21 @@ class FetchImageJob implements ShouldQueue
     public function handle()
     {
         // Fetch from url
-        $ch = curl_init($this->path);
-        curl_setopt($ch, CURLOPT_HEADER, 0);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+
+        $ch = curl_init();
+        $options =  array(
+
+            CURLOPT_URL => $this->path,
+            CURLOPT_ENCODING => "",
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_HTTPGET => true,
+            CURLOPT_CONNECTTIMEOUT => 60,
+            CURLOPT_TIMEOUT => 60
+
+        );
+
+        curl_setopt_array($ch, $options);
+
         $contents = curl_exec($ch);
 
         // Check for errors and display error message
@@ -49,9 +61,13 @@ class FetchImageJob implements ShouldQueue
         }
         curl_close($ch);
 
-
         $name = substr($this->path, strrpos($this->path, '/') + 1);
-        Storage::disk('public')->put($name, $contents);
+        $name = explode("?", $name)[0];
+
+        if (!Storage::disk('public')->put($name, $contents)) {
+            $this->throwError("Image could not be created");
+            return;
+        }
 
         $mime = Storage::disk('public')->mimeType($name);
 
@@ -66,6 +82,7 @@ class FetchImageJob implements ShouldQueue
         $image->name = $name;
         $image->user_id = $this->user->id;
         $image->save();
+
 
         $this->user->notify(new ImageSuccessNotification($this->path));
 
